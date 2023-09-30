@@ -5,13 +5,12 @@ import re
 import os
 
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import ElementClickInterceptedException
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 import requests
 from PIL import Image
 
@@ -22,9 +21,15 @@ os.makedirs(
     exist_ok=True
 )
 
-service = Service(ChromeDriverManager().install())
-driver = webdriver.Chrome(
-    service=service
+# Set up option for Selenium's headless mode
+chrome_options = Options()
+chrome_options.add_argument("--window-size=1920,1080")
+chrome_options.add_argument("--headless") # Enable headless mode
+chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36")
+
+
+driver = webdriver.Edge(
+    options=chrome_options
 )
 
 SLEEP_TIME = 1
@@ -67,7 +72,7 @@ def download_google_images(search_query: str, number_of_images: int) -> str:
 
     box = driver.find_element(
         by=By.XPATH,
-        value="//input[contains(@class,'gLFyf gsfi')]"
+        value="//*[@name='q']"
     )
 
     box.send_keys(search_query)
@@ -103,8 +108,15 @@ def download_google_images(search_query: str, number_of_images: int) -> str:
 
             actual_imgs = driver.find_elements(
                 by=By.XPATH,
-                value="//img[contains(@class,'n3VNCb')]"
+                value="//img[contains(@class,'r48jcc pT0Scc iPVvYb')]"
             )
+
+            if (len(actual_imgs) == 0):
+                actual_imgs = driver.find_elements(
+                    by=By.XPATH,
+                    value="//img[contains(@class,'Tt9ew pT0Scc')]"
+                )
+
 
             src = ''
 
@@ -121,10 +133,16 @@ def download_google_images(search_query: str, number_of_images: int) -> str:
                 if src == '' and 'base' in actual_img.get_attribute('src'):
                     src += actual_img.get_attribute('src')
 
+            os.makedirs(
+                name=f'{cwd}/{IMAGE_FOLDER}/{search_query}/',
+                exist_ok=True
+            )
+
+            image_name = search_query.replace('/', ' ')
+            image_name = re.sub(pattern=" ", repl="_", string=image_name)
+            file_path = f'{IMAGE_FOLDER}/{search_query}/{count}_{image_name}.jpeg'
+
             if 'https://' in src:
-                image_name = search_query.replace('/', ' ')
-                image_name = re.sub(pattern=" ", repl="_", string=image_name)
-                file_path = f'{IMAGE_FOLDER}/{count}_{image_name}.jpeg'
                 try:
                     result = requests.get(src, allow_redirects=True, timeout=10)
                     open(file_path, 'wb').write(result.content)
@@ -141,9 +159,6 @@ def download_google_images(search_query: str, number_of_images: int) -> str:
                     count -= 1
             else:
                 img_data = src.split(',')
-                image_name = search_query.replace('/', ' ')
-                image_name = re.sub(pattern=" ", repl="_", string=image_name)
-                file_path = f'{IMAGE_FOLDER}/{count}_{image_name}.jpeg'
                 try:
                     img = Image.open(BytesIO(base64.b64decode(img_data[1])))
                     img = img.convert('RGB')
